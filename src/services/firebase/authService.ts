@@ -56,6 +56,8 @@ function mapFirebaseAuthError(error: unknown): string {
         return 'Popup Google diblokir oleh browser. Izinkan popup untuk melanjutkan.';
       case 'auth/operation-not-allowed':
         return 'Metode login Email/Password belum diaktifkan di Firebase Console. Silakan aktifkan Email/Password atau gunakan tombol Masuk dengan Google.';
+      case 'auth/unauthorized-domain':
+        return `Domain "${typeof window !== 'undefined' ? window.location.hostname : ''}" belum diizinkan pada proyek Firebase "${auth.app.options.projectId || 'gen-lang-client-0204854375'}". Tambahkan domain tersebut di Firebase Console → Authentication → Settings → Authorized domains.`;
       default:
         break;
     }
