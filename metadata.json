@@ -1,0 +1,6 @@
+{
+  "name": "SIWAKUR - SMKN 9 Bulukumba",
+  "description": "Sistem Informasi Wakil Kurikulum SMKN 9 Bulukumba untuk pengelolaan perangkat ajar guru, whitelist aktivasi akun, integrasi Google Drive, dan rekap Google Sheets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

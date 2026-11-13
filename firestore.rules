@@ -1,0 +1,329 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Global Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidEmailId(id) {
+      return id is string && id.size() >= 5 && id.size() <= 254 && id.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Strict verified-email Wakur check (prevents email spoofing when email_verified is false)
+    function isWakurToken() {
+      return isSignedIn() &&
+        request.auth.token.email_verified == true &&
+        request.auth.token.email.lower() == 'rahmathidayat552@guru.smk.belajar.id';
+    }
+
+    function isWakur() {
+      return isWakurToken() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'wakur'
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'fullName', 'nip', 'subject', 'role', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'fullName', 'nip', 'subject', 'role', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        data.email is string && data.email.size() >= 5 && data.email.size() <= 254 &&
+        data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 150 &&
+        data.nip is string && data.nip.size() <= 50 &&
+        data.subject is string && data.subject.size() <= 150 &&
+        data.role in ['wakur', 'guru'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidWhitelistedTeacher(data) {
+      return data.keys().hasAll(['email', 'fullName', 'nip', 'subject', 'isRegistered', 'uid', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['email', 'fullName', 'nip', 'subject', 'isRegistered', 'uid', 'createdBy', 'createdAt', 'updatedAt']) &&
+        isValidEmailId(data.email) &&
+        data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 150 &&
+        data.nip is string && data.nip.size() >= 1 && data.nip.size() <= 50 &&
+        data.subject is string && data.subject.size() >= 2 && data.subject.size() <= 150 &&
+        data.isRegistered is bool &&
+        (data.uid == null || isValidId(data.uid)) &&
+        isValidId(data.createdBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidWhitelistStatus(data) {
+      return data.keys().hasAll(['active', 'isRegistered', 'uid', 'updatedAt']) &&
+        data.keys().hasOnly(['active', 'isRegistered', 'uid', 'updatedAt']) &&
+        data.active is bool &&
+        data.isRegistered is bool &&
+        (data.uid == null || isValidId(data.uid)) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidTask(data) {
+      return data.keys().hasAll(['schoolId', 'title', 'description', 'deadline', 'driveFolderId', 'driveFolderUrl', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['schoolId', 'title', 'description', 'deadline', 'driveFolderId', 'driveFolderUrl', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.schoolId == 'smkn9-bulukumba' &&
+        data.title is string && data.title.size() >= 3 && data.title.size() <= 200 &&
+        data.description is string && data.description.size() <= 2000 &&
+        data.deadline is string && data.deadline.size() >= 4 && data.deadline.size() <= 32 &&
+        data.driveFolderId is string && data.driveFolderId.size() <= 256 &&
+        data.driveFolderUrl is string && data.driveFolderUrl.size() <= 512 &&
+        isValidId(data.createdBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidSubmission(data) {
+      return data.keys().hasAll([
+          'taskId', 'taskTitle', 'teacherUid', 'teacherEmail', 'teacherName',
+          'teacherNip', 'teacherSubject', 'fileName', 'fileUrl', 'driveFileId',
+          'submissionType', 'status', 'revisionNote', 'reviewedBy', 'submittedAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'taskId', 'taskTitle', 'teacherUid', 'teacherEmail', 'teacherName',
+          'teacherNip', 'teacherSubject', 'fileName', 'fileUrl', 'driveFileId',
+          'submissionType', 'status', 'revisionNote', 'reviewedBy', 'submittedAt', 'updatedAt'
+        ]) &&
+        isValidId(data.taskId) &&
+        data.taskTitle is string && data.taskTitle.size() >= 1 && data.taskTitle.size() <= 200 &&
+        isValidId(data.teacherUid) &&
+        data.teacherEmail is string && data.teacherEmail.size() >= 5 && data.teacherEmail.size() <= 254 &&
+        data.teacherName is string && data.teacherName.size() >= 1 && data.teacherName.size() <= 150 &&
+        data.teacherNip is string && data.teacherNip.size() <= 50 &&
+        data.teacherSubject is string && data.teacherSubject.size() <= 150 &&
+        data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 300 &&
+        data.fileUrl is string && data.fileUrl.size() >= 5 && data.fileUrl.size() <= 1000 &&
+        data.driveFileId is string && data.driveFileId.size() <= 256 &&
+        data.submissionType in ['drive_upload', 'external_link'] &&
+        data.status in ['Menunggu Verifikasi', 'Disetujui', 'Perlu Revisi'] &&
+        data.revisionNote is string && data.revisionNote.size() <= 1000 &&
+        data.reviewedBy is string && data.reviewedBy.size() <= 128 &&
+        data.submittedAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    // 1. User Profiles
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isWakur());
+      allow list: if isWakurToken();
+
+      allow create: if isSignedIn() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (
+          (incoming().role == 'wakur' && isWakurToken()) ||
+          (
+            incoming().role == 'guru' &&
+            exists(/databases/$(database)/documents/whitelisted_teachers/$(incoming().email.lower())) &&
+            get(/databases/$(database)/documents/whitelisted_teachers/$(incoming().email.lower())).data.uid == request.auth.uid
+          )
+        );
+
+      allow update: if isSignedIn() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().email == existing().email &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isWakur() ||
+          (
+            isOwner(userId) &&
+            incoming().role == existing().role &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'nip', 'subject', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isWakur() && isValidId(userId);
+    }
+
+    // 2. Whitelisted Teachers (PII isolated to Wakur or matching teacher)
+    match /whitelisted_teachers/{teacherEmail} {
+      allow get: if isValidEmailId(teacherEmail) && (
+        isWakur() ||
+        (isSignedIn() && existing().uid == request.auth.uid) ||
+        (isSignedIn() && existing().isRegistered == false && request.auth.token.email != null && request.auth.token.email.lower() == teacherEmail)
+      );
+      allow list: if isWakurToken();
+
+      allow create: if isWakur() &&
+        isValidEmailId(teacherEmail) &&
+        isValidWhitelistedTeacher(incoming()) &&
+        incoming().email == teacherEmail &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().isRegistered == false &&
+        incoming().uid == null &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn() &&
+        isValidEmailId(teacherEmail) &&
+        isValidWhitelistedTeacher(incoming()) &&
+        incoming().email == existing().email &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (
+            isWakur() &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'nip', 'subject', 'isRegistered', 'uid', 'updatedAt'])
+          ) ||
+          (
+            existing().isRegistered == false &&
+            incoming().isRegistered == true &&
+            incoming().uid == request.auth.uid &&
+            request.auth.token.email != null &&
+            request.auth.token.email.lower() == teacherEmail &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['isRegistered', 'uid', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isWakur() && isValidEmailId(teacherEmail);
+    }
+
+    // 3. Non-PII Whitelist Status (for pre-registration verification without exposing teacher PII)
+    match /whitelist_status/{teacherEmail} {
+      allow get: if isValidEmailId(teacherEmail);
+      allow list: if false;
+
+      allow create: if isWakur() &&
+        isValidEmailId(teacherEmail) &&
+        isValidWhitelistStatus(incoming()) &&
+        incoming().active == true &&
+        incoming().isRegistered == false &&
+        incoming().uid == null &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn() &&
+        isValidEmailId(teacherEmail) &&
+        isValidWhitelistStatus(incoming()) &&
+        incoming().updatedAt == request.time &&
+        (
+          (
+            isWakur() &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['active', 'isRegistered', 'uid', 'updatedAt'])
+          ) ||
+          (
+            existing().active == true &&
+            existing().isRegistered == false &&
+            incoming().active == true &&
+            incoming().isRegistered == true &&
+            incoming().uid == request.auth.uid &&
+            request.auth.token.email != null &&
+            request.auth.token.email.lower() == teacherEmail &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['isRegistered', 'uid', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isWakur() && isValidEmailId(teacherEmail);
+    }
+
+    // 4. Curriculum Tasks
+    match /tasks/{taskId} {
+      allow get: if isSignedIn() && isValidId(taskId) && (
+        isWakur() ||
+        exists(/databases/$(database)/documents/users/$(request.auth.uid))
+      );
+      allow list: if isSignedIn() && existing().schoolId == 'smkn9-bulukumba';
+
+      allow create: if isWakur() &&
+        isValidId(taskId) &&
+        isValidTask(incoming()) &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isWakur() &&
+        isValidId(taskId) &&
+        isValidTask(incoming()) &&
+        incoming().schoolId == existing().schoolId &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'deadline', 'driveFolderId', 'driveFolderUrl', 'updatedAt']);
+
+      allow delete: if isWakur() && isValidId(taskId);
+    }
+
+    // 5. Teacher Submissions
+    match /submissions/{submissionId} {
+      allow get: if isSignedIn() && isValidId(submissionId) && (
+        isWakur() ||
+        existing().teacherUid == request.auth.uid
+      );
+      allow list: if isSignedIn() && (
+        isWakurToken() ||
+        existing().teacherUid == request.auth.uid
+      );
+
+      allow create: if isSignedIn() &&
+        isValidId(submissionId) &&
+        isValidSubmission(incoming()) &&
+        incoming().teacherUid == request.auth.uid &&
+        incoming().status == 'Menunggu Verifikasi' &&
+        incoming().revisionNote == '' &&
+        incoming().reviewedBy == '' &&
+        incoming().submittedAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/tasks/$(incoming().taskId)) &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+
+      allow update: if isSignedIn() &&
+        isValidId(submissionId) &&
+        isValidSubmission(incoming()) &&
+        incoming().taskId == existing().taskId &&
+        incoming().teacherUid == existing().teacherUid &&
+        incoming().submittedAt == existing().submittedAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (
+            isWakur() &&
+            incoming().reviewedBy == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'revisionNote', 'reviewedBy', 'updatedAt'])
+          ) ||
+          (
+            existing().teacherUid == request.auth.uid &&
+            existing().status != 'Disetujui' &&
+            incoming().status == 'Menunggu Verifikasi' &&
+            incoming().revisionNote == existing().revisionNote &&
+            incoming().reviewedBy == existing().reviewedBy &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['fileName', 'fileUrl', 'driveFileId', 'submissionType', 'status', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isWakur() && isValidId(submissionId);
+    }
+  }
+}

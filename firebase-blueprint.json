@@ -1,0 +1,297 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Profil pengguna terautentikasi SIWAKUR (Wakasek Kurikulum atau Guru SMKN 9 Bulukumba).",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Authentication UID."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254,
+          "description": "Alamat email pengguna."
+        },
+        "fullName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 150,
+          "description": "Nama lengkap pengguna."
+        },
+        "nip": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Nomor Induk Pegawai (NIP) atau kode pegawai."
+        },
+        "subject": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "Mata pelajaran yang diampu."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["wakur", "guru"],
+          "description": "Peran akses pengguna dalam sistem."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembuatan profil."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan profil terakhir."
+        }
+      },
+      "required": ["uid", "email", "fullName", "nip", "subject", "role", "createdAt", "updatedAt"]
+    },
+    "WhitelistedTeacher": {
+      "title": "WhitelistedTeacher",
+      "description": "Data guru yang didaftarkan oleh Wakasek Kurikulum untuk aktivasi akun.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254,
+          "description": "Email resmi guru (sekaligus ID dokumen huruf kecil)."
+        },
+        "fullName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 150,
+          "description": "Nama lengkap dan gelar guru."
+        },
+        "nip": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50,
+          "description": "NIP atau NUPTK guru."
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 150,
+          "description": "Mata pelajaran yang diampu guru."
+        },
+        "isRegistered": {
+          "type": "boolean",
+          "description": "Status apakah guru sudah mengaktivasi akun."
+        },
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "UID Firebase Auth setelah aktivasi (null jika belum)."
+        },
+        "createdBy": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID Wakur yang mendaftarkan guru."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["email", "fullName", "nip", "subject", "isRegistered", "createdBy", "createdAt", "updatedAt"]
+    },
+    "WhitelistStatus": {
+      "title": "WhitelistStatus",
+      "description": "Status aktivasi non-PII untuk validasi pra-aktivasi akun guru.",
+      "type": "object",
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "isRegistered": {
+          "type": "boolean"
+        },
+        "uid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["active", "isRegistered", "updatedAt"]
+    },
+    "CurriculumTask": {
+      "title": "CurriculumTask",
+      "description": "Tugas pengumpulan perangkat ajar yang dibuat oleh Wakasek Kurikulum.",
+      "type": "object",
+      "properties": {
+        "schoolId": {
+          "type": "string",
+          "enum": ["smkn9-bulukumba"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "deadline": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 32
+        },
+        "driveFolderId": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "driveFolderUrl": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "createdBy": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["schoolId", "title", "description", "deadline", "driveFolderId", "driveFolderUrl", "createdBy", "createdAt", "updatedAt"]
+    },
+    "TaskSubmission": {
+      "title": "TaskSubmission",
+      "description": "Setoran perangkat ajar guru per tugas beserta status verifikasi Wakur.",
+      "type": "object",
+      "properties": {
+        "taskId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "taskTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "teacherUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "teacherEmail": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254
+        },
+        "teacherName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "teacherNip": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "teacherSubject": {
+          "type": "string",
+          "maxLength": 150
+        },
+        "fileName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "fileUrl": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 1000
+        },
+        "driveFileId": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "submissionType": {
+          "type": "string",
+          "enum": ["drive_upload", "external_link"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Menunggu Verifikasi", "Disetujui", "Perlu Revisi"]
+        },
+        "revisionNote": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "reviewedBy": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "submittedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "taskId",
+        "taskTitle",
+        "teacherUid",
+        "teacherEmail",
+        "teacherName",
+        "teacherNip",
+        "teacherSubject",
+        "fileName",
+        "fileUrl",
+        "driveFileId",
+        "submissionType",
+        "status",
+        "revisionNote",
+        "reviewedBy",
+        "submittedAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Profil pengguna terautentikasi dengan role wakur atau guru."
+    },
+    "/whitelisted_teachers/{teacherEmail}": {
+      "schema": { "$ref": "#/entities/WhitelistedTeacher" },
+      "description": "Whitelist email guru SMKN 9 Bulukumba dengan ID dokumen email huruf kecil."
+    },
+    "/whitelist_status/{teacherEmail}": {
+      "schema": { "$ref": "#/entities/WhitelistStatus" },
+      "description": "Status aktivasi non-PII untuk pengecekan whitelist sebelum pembuatan akun."
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/CurriculumTask" },
+      "description": "Daftar tugas perangkat ajar yang dibuat Wakasek Kurikulum."
+    },
+    "/submissions/{submissionId}": {
+      "schema": { "$ref": "#/entities/TaskSubmission" },
+      "description": "Pengumpulan perangkat ajar guru untuk masing-masing tugas."
+    }
+  }
+}
