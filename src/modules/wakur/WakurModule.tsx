@@ -3,6 +3,7 @@ import {
   CheckSquare,
   FolderKanban,
   LayoutDashboard,
+  ShieldCheck,
   Users,
 } from 'lucide-react';
 import { useAuth } from '@/src/core/auth/AuthContext';
@@ -10,13 +11,20 @@ import { AppShell, NavItem } from '@/src/core/layout/AppShell';
 import {
   subscribeToAllSubmissions,
   subscribeToTasks,
+  subscribeToWakurAdmins,
   subscribeToWhitelistedTeachers,
 } from '@/src/services/firebase/firestoreService';
-import { CurriculumTask, TaskSubmission, WhitelistedTeacher } from '@/src/types';
+import {
+  CurriculumTask,
+  TaskSubmission,
+  WakurAdmin,
+  WhitelistedTeacher,
+} from '@/src/types';
 import { WakurDashboard } from './components/WakurDashboard';
 import { TeacherWhitelist } from './components/TeacherWhitelist';
 import { TaskManagement } from './components/TaskManagement';
 import { VerificationExport } from './components/VerificationExport';
+import { WakurAdminsManager } from './components/WakurAdminsManager';
 
 const WAKUR_NAV: NavItem[] = [
   {
@@ -39,6 +47,11 @@ const WAKUR_NAV: NavItem[] = [
     label: 'Verifikasi & Export',
     icon: <CheckSquare className="h-4 w-4" />,
   },
+  {
+    id: 'wakur-admins',
+    label: 'Admin Wakur',
+    icon: <ShieldCheck className="h-4 w-4" />,
+  },
 ];
 
 export const WakurModule: React.FC = () => {
@@ -47,6 +60,7 @@ export const WakurModule: React.FC = () => {
   const [teachers, setTeachers] = useState<WhitelistedTeacher[]>([]);
   const [tasks, setTasks] = useState<CurriculumTask[]>([]);
   const [submissions, setSubmissions] = useState<TaskSubmission[]>([]);
+  const [wakurAdmins, setWakurAdmins] = useState<WakurAdmin[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
 
@@ -94,10 +108,20 @@ export const WakurModule: React.FC = () => {
       }
     );
 
+    const unsubWakurAdmins = subscribeToWakurAdmins(
+      (data) => {
+        setWakurAdmins(data);
+      },
+      (err) => {
+        setDataError(err.message);
+      }
+    );
+
     return () => {
       unsubTeachers();
       unsubTasks();
       unsubSubmissions();
+      unsubWakurAdmins();
     };
   }, [user, role]);
 
@@ -140,6 +164,10 @@ export const WakurModule: React.FC = () => {
           teachers={teachers}
           submissions={submissions}
         />
+      )}
+
+      {activeTab === 'wakur-admins' && (
+        <WakurAdminsManager admins={wakurAdmins} />
       )}
     </AppShell>
   );

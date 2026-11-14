@@ -15,6 +15,7 @@ import {
   getDoc,
   serverTimestamp,
   setDoc,
+  updateDoc,
   writeBatch,
 } from 'firebase/firestore';
 import {
@@ -62,7 +63,24 @@ function mapFirebaseAuthError(error: unknown): string {
         break;
     }
   }
-  return error instanceof Error ? error.message : 'Terjadi kesalahan autentikasi.';
+  if (error instanceof Error) {
+    const raw = error.message;
+    if (raw.startsWith('{') && raw.includes('operationType')) {
+      try {
+        const parsed = JSON.parse(raw) as { error?: string; path?: string };
+        if (parsed.error && parsed.error.includes('Missing or insufficient permissions')) {
+          if (parsed.path && parsed.path.startsWith('whitelisted_teachers/')) {
+            return 'Akses ditolak: Email Anda belum didaftarkan oleh Wakasek Kurikulum SMKN 9 Bulukumba, atau belum memiliki hak akses Wakur.';
+          }
+          return 'Akses database ditolak oleh aturan keamanan Firestore. Pastikan email Anda sudah terdaftar dan terverifikasi.';
+        }
+      } catch {
+        // Fallback ke pesan error standar
+      }
+    }
+    return raw;
+  }
+  return 'Terjadi kesalahan autentikasi.';
 }
 
 async function ensureUserProfile(
@@ -70,7 +88,21 @@ async function ensureUserProfile(
   fallbackInfo?: { fullName?: string; nip?: string; subject?: string }
 ): Promise<UserProfile> {
   const email = (user.email || '').trim().toLowerCase();
-  const isWakurAccount = email === WAKUR_EMAIL;
+  const isSuperWakur = email === WAKUR_EMAIL;
+
+  let dynamicWakurData: { fullName?: string; note?: string } | null = null;
+  if (!isSuperWakur && user.emailVerified) {
+    try {
+      const wakurAdminSnap = await getDoc(doc(db, 'wakur_admins', email));
+      if (wakurAdminSnap.exists()) {
+        dynamicWakurData = wakurAdminSnap.data() as { fullName?: string; note?: string };
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, `wakur_admins/${email}`);
+    }
+  }
+
+  const isWakurAccount = isSuperWakur || Boolean(dynamicWakurData);
 
   const userRef = doc(db, 'users', user.uid);
   let userSnap;
@@ -80,14 +112,6 @@ async function ensureUserProfile(
     handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
   }
 
-  if (userSnap && userSnap.exists()) {
-    const data = userSnap.data() as UserProfile;
-    return {
-      ...data,
-      role: isWakurAccount ? 'wakur' : data.role,
-    };
-  }
-
   if (isWakurAccount) {
     if (!user.emailVerified) {
       throw new Error(
@@ -95,12 +119,37 @@ async function ensureUserProfile(
       );
     }
 
+    if (userSnap && userSnap.exists()) {
+      const data = userSnap.data() as UserProfile;
+      if (data.role !== 'wakur') {
+        try {
+          await updateDoc(userRef, {
+            role: 'wakur',
+            updatedAt: serverTimestamp(),
+          });
+        } catch (err) {
+          handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
+        }
+      }
+      return {
+        ...data,
+        role: 'wakur',
+      };
+    }
+
     const newProfile: UserProfile = {
       uid: user.uid,
       email,
-      fullName: (user.displayName || fallbackInfo?.fullName || 'Wakasek Kurikulum').slice(0, 150),
+      fullName: (
+        dynamicWakurData?.fullName ||
+        user.displayName ||
+        fallbackInfo?.fullName ||
+        'Wakasek Kurikulum'
+      ).slice(0, 150),
       nip: (fallbackInfo?.nip || '-').slice(0, 50),
-      subject: 'Wakil Kepala Sekolah Bidang Kurikulum',
+      subject: (
+        dynamicWakurData?.note || 'Wakil Kepala Sekolah Bidang Kurikulum'
+      ).slice(0, 150),
       role: 'wakur',
     };
 
@@ -128,7 +177,9 @@ async function ensureUserProfile(
   if (!whitelistSnap || !whitelistSnap.exists()) {
     await signOut(auth);
     setCachedGoogleAccessToken(null);
-    throw new Error('Email belum didaftarkan oleh Wakasek Kurikulum SMKN 9 Bulukumba');
+    throw new Error(
+      `Email (${email}) belum didaftarkan oleh Wakasek Kurikulum SMKN 9 Bulukumba. Jika Anda mencoba masuk sebagai Wakasek Kurikulum, gunakan email resmi Wakur (${WAKUR_EMAIL}).`
+    );
   }
 
   const teacherData = whitelistSnap.data();
@@ -166,6 +217,24 @@ async function ensureUserProfile(
     subject: String(teacherData.subject || '-').slice(0, 150),
     role: 'guru',
   };
+
+  if (userSnap && userSnap.exists()) {
+    const existingData = userSnap.data() as UserProfile;
+    if (existingData.role !== 'guru') {
+      try {
+        await updateDoc(userRef, {
+          role: 'guru',
+          updatedAt: serverTimestamp(),
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
+      }
+    }
+    return {
+      ...existingData,
+      role: 'guru',
+    };
+  }
 
   try {
     await setDoc(userRef, {

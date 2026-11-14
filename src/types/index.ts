@@ -76,3 +76,20 @@ export interface NewTaskInput {
   driveFolderId: string;
   driveFolderUrl: string;
 }
+
+export interface WakurAdmin {
+  id: string; // email.toLowerCase()
+  email: string;
+  fullName: string;
+  note: string;
+  addedBy: string;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+}
+
+export interface NewWakurAdminInput {
+  email: string;
+  fullName: string;
+  note: string;
+}
+

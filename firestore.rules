@@ -29,18 +29,20 @@ service cloud.firestore {
     }
 
     // Strict verified-email Wakur check (prevents email spoofing when email_verified is false)
-    function isWakurToken() {
+    function isSuperWakurToken() {
       return isSignedIn() &&
         request.auth.token.email_verified == true &&
         request.auth.token.email.lower() == 'rahmathidayat552@guru.smk.belajar.id';
     }
 
+    function isDynamicWakur() {
+      return isSignedIn() &&
+        request.auth.token.email_verified == true &&
+        exists(/databases/$(database)/documents/wakur_admins/$(request.auth.token.email.lower()));
+    }
+
     function isWakur() {
-      return isWakurToken() || (
-        isSignedIn() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'wakur'
-      );
+      return isSuperWakurToken() || isDynamicWakur();
     }
 
     function isOwner(userId) {
@@ -127,12 +129,23 @@ service cloud.firestore {
         data.updatedAt is timestamp;
     }
 
+    function isValidWakurAdmin(data) {
+      return data.keys().hasAll(['email', 'fullName', 'note', 'addedBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['email', 'fullName', 'note', 'addedBy', 'createdAt', 'updatedAt']) &&
+        isValidEmailId(data.email) &&
+        data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 150 &&
+        data.note is string && data.note.size() <= 150 &&
+        isValidId(data.addedBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
     // --- Collection Rules ---
 
     // 1. User Profiles
     match /users/{userId} {
       allow get: if isValidId(userId) && (isOwner(userId) || isWakur());
-      allow list: if isWakurToken();
+      allow list: if isWakur();
 
       allow create: if isSignedIn() &&
         isValidId(userId) &&
@@ -142,7 +155,7 @@ service cloud.firestore {
         incoming().createdAt == request.time &&
         incoming().updatedAt == request.time &&
         (
-          (incoming().role == 'wakur' && isWakurToken()) ||
+          (incoming().role == 'wakur' && isWakur()) ||
           (
             incoming().role == 'guru' &&
             exists(/databases/$(database)/documents/whitelisted_teachers/$(incoming().email.lower())) &&
@@ -161,22 +174,68 @@ service cloud.firestore {
           isWakur() ||
           (
             isOwner(userId) &&
-            incoming().role == existing().role &&
-            incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'nip', 'subject', 'updatedAt'])
+            incoming().role == 'guru' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['role', 'fullName', 'nip', 'subject', 'updatedAt'])
           )
         );
 
       allow delete: if isWakur() && isValidId(userId);
     }
 
+    // 1b. Dynamic Wakur Admins
+    match /wakur_admins/{adminEmail} {
+      allow get: if isValidEmailId(adminEmail) && (
+        isWakur() ||
+        (
+          isSignedIn() &&
+          request.auth.token.email_verified == true &&
+          request.auth.token.email.lower() == adminEmail
+        )
+      );
+      allow list: if isWakur();
+
+      allow create: if isWakur() &&
+        isValidEmailId(adminEmail) &&
+        isValidWakurAdmin(incoming()) &&
+        incoming().email == adminEmail &&
+        incoming().addedBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isWakur() &&
+        isValidEmailId(adminEmail) &&
+        isValidWakurAdmin(incoming()) &&
+        incoming().email == existing().email &&
+        incoming().addedBy == existing().addedBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'note', 'updatedAt']);
+
+      allow delete: if isWakur() &&
+        isValidEmailId(adminEmail) &&
+        adminEmail != 'rahmathidayat552@guru.smk.belajar.id';
+    }
+
     // 2. Whitelisted Teachers (PII isolated to Wakur or matching teacher)
     match /whitelisted_teachers/{teacherEmail} {
       allow get: if isValidEmailId(teacherEmail) && (
         isWakur() ||
-        (isSignedIn() && existing().uid == request.auth.uid) ||
-        (isSignedIn() && existing().isRegistered == false && request.auth.token.email != null && request.auth.token.email.lower() == teacherEmail)
+        (
+          isSignedIn() &&
+          request.auth.token.email_verified == true &&
+          request.auth.token.email.lower() == teacherEmail &&
+          (resource == null || existing().uid == request.auth.uid || existing().isRegistered == false)
+        ) ||
+        (
+          isSignedIn() &&
+          resource != null &&
+          (
+            existing().uid == request.auth.uid ||
+            (existing().isRegistered == false && request.auth.token.email != null && request.auth.token.email.lower() == teacherEmail)
+          )
+        )
       );
-      allow list: if isWakurToken();
+      allow list: if isWakur();
 
       allow create: if isWakur() &&
         isValidEmailId(teacherEmail) &&
@@ -281,10 +340,10 @@ service cloud.firestore {
     match /submissions/{submissionId} {
       allow get: if isSignedIn() && isValidId(submissionId) && (
         isWakur() ||
-        existing().teacherUid == request.auth.uid
+        (resource != null && existing().teacherUid == request.auth.uid)
       );
       allow list: if isSignedIn() && (
-        isWakurToken() ||
+        isWakur() ||
         existing().teacherUid == request.auth.uid
       );
 

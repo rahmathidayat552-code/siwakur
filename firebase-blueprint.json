@@ -270,12 +270,55 @@
         "submittedAt",
         "updatedAt"
       ]
+    },
+    "WakurAdmin": {
+      "title": "WakurAdmin",
+      "description": "Daftar email admin Wakasek Kurikulum tambahan yang dikelola secara dinamis melalui UI.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254,
+          "description": "Alamat email Google / Belajar.id admin Wakur (juga ID dokumen huruf kecil)."
+        },
+        "fullName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 150,
+          "description": "Nama lengkap admin Wakur."
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "Jabatan atau keterangan tugas kurikulum."
+        },
+        "addedBy": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID Wakur yang menambahkan admin ini."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["email", "fullName", "note", "addedBy", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
       "description": "Profil pengguna terautentikasi dengan role wakur atau guru."
+    },
+    "/wakur_admins/{adminEmail}": {
+      "schema": { "$ref": "#/entities/WakurAdmin" },
+      "description": "Daftar dinamis email Wakasek Kurikulum tambahan dengan ID dokumen email huruf kecil."
     },
     "/whitelisted_teachers/{teacherEmail}": {
       "schema": { "$ref": "#/entities/WhitelistedTeacher" },

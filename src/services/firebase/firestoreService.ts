@@ -11,14 +11,16 @@ import {
   deleteDoc,
   Timestamp,
 } from 'firebase/firestore';
-import { auth, db, SCHOOL_ID } from './firebaseConfig';
+import { auth, db, SCHOOL_ID, WAKUR_EMAIL } from './firebaseConfig';
 import {
   CurriculumTask,
   NewTaskInput,
   NewTeacherInput,
+  NewWakurAdminInput,
   SubmissionStatus,
   SubmissionType,
   TaskSubmission,
+  WakurAdmin,
   WhitelistedTeacher,
 } from '@/src/types';
 
@@ -178,6 +180,79 @@ export function subscribeToTeacherSubmissions(
       handleFirestoreError(error, OperationType.LIST, path);
     }
   );
+}
+
+// --- Wakur Admins (Multi-Email Wakur Management) ---
+
+export function subscribeToWakurAdmins(
+  onData: (admins: WakurAdmin[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const path = 'wakur_admins';
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const items: WakurAdmin[] = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<WakurAdmin, 'id'>),
+      }));
+      items.sort((a, b) => a.fullName.localeCompare(b.fullName, 'id'));
+      onData(items);
+    },
+    (error) => {
+      if (onError) {
+        onError(error);
+      }
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  );
+}
+
+export async function addWakurAdmin(
+  input: NewWakurAdminInput,
+  addedByUid: string
+): Promise<void> {
+  const email = input.email.trim().toLowerCase();
+  const fullName = input.fullName.trim().slice(0, 150);
+  const note = input.note.trim().slice(0, 150);
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Format alamat email admin Wakur tidak valid.');
+  }
+  if (email === WAKUR_EMAIL) {
+    throw new Error(
+      `Email ${WAKUR_EMAIL} sudah menjadi Super-Wakur Utama dari konfigurasi sistem.`
+    );
+  }
+  if (fullName.length < 2) {
+    throw new Error('Nama lengkap admin Wakur minimal 2 karakter.');
+  }
+
+  try {
+    await setDoc(doc(db, 'wakur_admins', email), {
+      email,
+      fullName,
+      note,
+      addedBy: addedByUid,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `wakur_admins/${email}`);
+  }
+}
+
+export async function deleteWakurAdmin(email: string): Promise<void> {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (normalizedEmail === WAKUR_EMAIL) {
+    throw new Error('Super-Wakur Utama tidak dapat dihapus dari sistem.');
+  }
+
+  try {
+    await deleteDoc(doc(db, 'wakur_admins', normalizedEmail));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `wakur_admins/${normalizedEmail}`);
+  }
 }
 
 // --- CRUD Operations ---
