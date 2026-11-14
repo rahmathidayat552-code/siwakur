@@ -27,6 +27,7 @@ interface AuthContextValue {
   activateTeacherAccount: (email: string, password: string) => Promise<UserProfile>;
   signInWithGoogle: () => Promise<UserProfile>;
   connectGoogle: () => Promise<string>;
+  updateProfileSubjects: (subject: string, subjects: string[]) => void;
   signOut: () => Promise<void>;
 }
 
@@ -144,6 +145,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return token;
   }, []);
 
+  const updateProfileSubjects = useCallback((subject: string, subjects: string[]) => {
+    setProfile((prev) => (prev ? { ...prev, subject, subjects } : prev));
+  }, []);
+
   const signOut = useCallback(async () => {
     await logoutUser();
     setUser(null);
@@ -165,6 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         activateTeacherAccount,
         signInWithGoogle,
         connectGoogle,
+        updateProfileSubjects,
         signOut,
       }}
     >

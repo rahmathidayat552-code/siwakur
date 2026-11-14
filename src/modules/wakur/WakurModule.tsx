@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  BookOpen,
   CheckSquare,
   FolderKanban,
   LayoutDashboard,
@@ -10,18 +11,21 @@ import { useAuth } from '@/src/core/auth/AuthContext';
 import { AppShell, NavItem } from '@/src/core/layout/AppShell';
 import {
   subscribeToAllSubmissions,
+  subscribeToSubjects,
   subscribeToTasks,
   subscribeToWakurAdmins,
   subscribeToWhitelistedTeachers,
 } from '@/src/services/firebase/firestoreService';
 import {
   CurriculumTask,
+  SchoolSubject,
   TaskSubmission,
   WakurAdmin,
   WhitelistedTeacher,
 } from '@/src/types';
 import { WakurDashboard } from './components/WakurDashboard';
 import { TeacherWhitelist } from './components/TeacherWhitelist';
+import { SubjectManagement } from './components/SubjectManagement';
 import { TaskManagement } from './components/TaskManagement';
 import { VerificationExport } from './components/VerificationExport';
 import { WakurAdminsManager } from './components/WakurAdminsManager';
@@ -36,6 +40,11 @@ const WAKUR_NAV: NavItem[] = [
     id: 'whitelist',
     label: 'Database Guru',
     icon: <Users className="h-4 w-4" />,
+  },
+  {
+    id: 'subjects',
+    label: 'Mata Pelajaran',
+    icon: <BookOpen className="h-4 w-4" />,
   },
   {
     id: 'tasks',
@@ -58,6 +67,7 @@ export const WakurModule: React.FC = () => {
   const { user, role } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [teachers, setTeachers] = useState<WhitelistedTeacher[]>([]);
+  const [subjects, setSubjects] = useState<SchoolSubject[]>([]);
   const [tasks, setTasks] = useState<CurriculumTask[]>([]);
   const [submissions, setSubmissions] = useState<TaskSubmission[]>([]);
   const [wakurAdmins, setWakurAdmins] = useState<WakurAdmin[]>([]);
@@ -117,11 +127,21 @@ export const WakurModule: React.FC = () => {
       }
     );
 
+    const unsubSubjects = subscribeToSubjects(
+      (data) => {
+        setSubjects(data);
+      },
+      (err) => {
+        setDataError(err.message);
+      }
+    );
+
     return () => {
       unsubTeachers();
       unsubTasks();
       unsubSubmissions();
       unsubWakurAdmins();
+      unsubSubjects();
     };
   }, [user, role]);
 
@@ -148,7 +168,15 @@ export const WakurModule: React.FC = () => {
         />
       )}
 
-      {activeTab === 'whitelist' && <TeacherWhitelist teachers={teachers} />}
+      {activeTab === 'whitelist' && (
+        <TeacherWhitelist
+          teachers={teachers}
+          subjects={subjects}
+          onNavigateSubjects={() => setActiveTab('subjects')}
+        />
+      )}
+
+      {activeTab === 'subjects' && <SubjectManagement subjects={subjects} />}
 
       {activeTab === 'tasks' && (
         <TaskManagement

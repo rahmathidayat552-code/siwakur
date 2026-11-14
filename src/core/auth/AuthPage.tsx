@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, BookOpen, CheckCircle2, Eye, EyeOff, FolderKanban, GraduationCap, KeyRound, Lock, Mail } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Eye, EyeOff, FolderKanban, GraduationCap, KeyRound, Lock, Mail } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
 type AuthTab = 'login' | 'activate';
@@ -24,7 +24,6 @@ export const AuthPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  const [campusImageFailed, setCampusImageFailed] = useState(false);
   const [logoError, setLogoError] = useState(false);
 
   useEffect(() => {
@@ -129,26 +128,6 @@ export const AuthPage: React.FC = () => {
               <p className="mt-4 max-w-lg text-sm leading-relaxed text-slate-300">
                 Portal terintegrasi untuk administrasi kurikulum SMKN 9 Bulukumba. Kelola tugas perangkat ajar, arsip otomatis Google Drive, verifikasi dokumen guru, dan ekspor rekap langsung ke Google Sheets.
               </p>
-            </div>
-
-            {/* Generated Campus Image */}
-            <div className="mt-8 overflow-hidden rounded-xl border border-slate-800 bg-slate-800">
-              {!campusImageFailed ? (
-                <img
-                  src="/src/assets/images/siwakur_campus_editorial_1794579432630.jpg"
-                  alt="Lingkungan akademik SMKN 9 Bulukumba"
-                  referrerPolicy="no-referrer"
-                  onError={() => setCampusImageFailed(true)}
-                  className="aspect-4/3 w-full object-cover"
-                />
-              ) : (
-                <div className="flex aspect-4/3 w-full flex-col items-center justify-center bg-slate-800 p-6 text-center">
-                  <BookOpen className="h-10 w-10 text-teal-400" />
-                  <p className="mt-3 text-sm font-medium text-slate-200">
-                    SMKN 9 Bulukumba · Bidang Kurikulum
-                  </p>
-                </div>
-              )}
             </div>
           </div>
 

@@ -26,7 +26,12 @@ import {
   getCachedGoogleAccessToken,
   WAKUR_EMAIL,
 } from './firebaseConfig';
-import { OperationType, handleFirestoreError } from './firestoreService';
+import {
+  OperationType,
+  formatSubjectsSummary,
+  handleFirestoreError,
+  normalizeSubjectsList,
+} from './firestoreService';
 import { UserProfile, UserRole } from '@/src/types';
 
 export interface AuthResult {
@@ -209,17 +214,29 @@ async function ensureUserProfile(
     }
   }
 
+  const normalizedSubjects = normalizeSubjectsList(
+    teacherData.subjects as string[] | undefined,
+    String(teacherData.subject || '')
+  );
+  const subjectSummary = formatSubjectsSummary(normalizedSubjects);
+
   const teacherProfile: UserProfile = {
     uid: user.uid,
     email,
     fullName: String(teacherData.fullName || user.displayName || 'Guru SMKN 9 Bulukumba').slice(0, 150),
     nip: String(teacherData.nip || '-').slice(0, 50),
-    subject: String(teacherData.subject || '-').slice(0, 150),
+    subject: subjectSummary,
+    subjects: normalizedSubjects,
     role: 'guru',
   };
 
   if (userSnap && userSnap.exists()) {
     const existingData = userSnap.data() as UserProfile;
+    const resolvedSubjects = normalizeSubjectsList(
+      existingData.subjects?.length ? existingData.subjects : normalizedSubjects,
+      existingData.subject || subjectSummary
+    );
+    const resolvedSubjectSummary = formatSubjectsSummary(resolvedSubjects, existingData.subject || subjectSummary);
     if (existingData.role !== 'guru') {
       try {
         await updateDoc(userRef, {
@@ -232,6 +249,8 @@ async function ensureUserProfile(
     }
     return {
       ...existingData,
+      subject: resolvedSubjectSummary,
+      subjects: resolvedSubjects,
       role: 'guru',
     };
   }
@@ -359,12 +378,17 @@ export async function registerTeacher(email: string, password: string): Promise<
   }
 
   // Langkah 5: Simpan profil user ke koleksi users/{uid}
+  const normalizedSubjects = normalizeSubjectsList(
+    teacherData.subjects as string[] | undefined,
+    String(teacherData.subject || '')
+  );
   const profile: UserProfile = {
     uid: credential.user.uid,
     email: normalizedEmail,
     fullName: String(teacherData.fullName || 'Guru SMKN 9 Bulukumba').slice(0, 150),
     nip: String(teacherData.nip || '-').slice(0, 50),
-    subject: String(teacherData.subject || '-').slice(0, 150),
+    subject: formatSubjectsSummary(normalizedSubjects),
+    subjects: normalizedSubjects,
     role: 'guru',
   };
 

@@ -30,8 +30,18 @@
         },
         "subject": {
           "type": "string",
-          "maxLength": 150,
-          "description": "Mata pelajaran yang diampu."
+          "maxLength": 500,
+          "description": "Ringkasan mata pelajaran yang diampu (dipisahkan koma jika lebih dari satu)."
+        },
+        "subjects": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": "Daftar mata pelajaran yang dipilih/diampu guru."
         },
         "role": {
           "type": "string",
@@ -77,8 +87,18 @@
         "subject": {
           "type": "string",
           "minLength": 2,
-          "maxLength": 150,
-          "description": "Mata pelajaran yang diampu guru."
+          "maxLength": 500,
+          "description": "Mata pelajaran yang diampu guru (dipisahkan koma jika lebih dari satu)."
+        },
+        "subjects": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": "Daftar mata pelajaran yang diampu guru."
         },
         "isRegistered": {
           "type": "boolean",
@@ -127,6 +147,47 @@
         }
       },
       "required": ["active", "isRegistered", "updatedAt"]
+    },
+    "SchoolSubject": {
+      "title": "SchoolSubject",
+      "description": "Master data mata pelajaran SMKN 9 Bulukumba yang dikelola Wakasek Kurikulum.",
+      "type": "object",
+      "properties": {
+        "schoolId": {
+          "type": "string",
+          "enum": ["smkn9-bulukumba"]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120,
+          "description": "Nama mata pelajaran."
+        },
+        "code": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Kode mata pelajaran (opsional)."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["Umum", "Kejuruan", "Muatan Lokal", "Lainnya"],
+          "description": "Kelompok mata pelajaran."
+        },
+        "createdBy": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["schoolId", "name", "code", "category", "createdBy", "createdAt", "updatedAt"]
     },
     "CurriculumTask": {
       "title": "CurriculumTask",
@@ -211,7 +272,7 @@
         },
         "teacherSubject": {
           "type": "string",
-          "maxLength": 150
+          "maxLength": 500
         },
         "fileName": {
           "type": "string",
@@ -327,6 +388,10 @@
     "/whitelist_status/{teacherEmail}": {
       "schema": { "$ref": "#/entities/WhitelistStatus" },
       "description": "Status aktivasi non-PII untuk pengecekan whitelist sebelum pembuatan akun."
+    },
+    "/subjects/{subjectId}": {
+      "schema": { "$ref": "#/entities/SchoolSubject" },
+      "description": "Master daftar mata pelajaran sekolah yang dikelola oleh Wakasek Kurikulum."
     },
     "/tasks/{taskId}": {
       "schema": { "$ref": "#/entities/CurriculumTask" },

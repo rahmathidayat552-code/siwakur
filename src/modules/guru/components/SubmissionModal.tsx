@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   AlertCircle,
+  Check,
   FileUp,
   Link2,
   MessageSquareWarning,
@@ -8,7 +9,11 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '@/src/core/auth/AuthContext';
-import { submitTeachingDevice } from '@/src/services/firebase/firestoreService';
+import {
+  formatSubjectsSummary,
+  normalizeSubjectsList,
+  submitTeachingDevice,
+} from '@/src/services/firebase/firestoreService';
 import {
   buildSubmissionFileName,
   uploadTeachingFile,
@@ -27,6 +32,28 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
   onClose,
 }) => {
   const { user, profile, googleAccessToken, connectGoogle } = useAuth();
+  const teacherSubjects = useMemo(
+    () => normalizeSubjectsList(profile?.subjects, profile?.subject),
+    [profile?.subjects, profile?.subject]
+  );
+
+  const [selectedSubmissionSubjects, setSelectedSubmissionSubjects] = useState<string[]>(() => {
+    if (existingSubmission?.teacherSubject) {
+      const existingList = normalizeSubjectsList(undefined, existingSubmission.teacherSubject);
+      if (existingList.length > 0) return existingList;
+    }
+    return teacherSubjects.length > 0 ? teacherSubjects : [];
+  });
+
+  const resolvedSubmissionSubject = useMemo(
+    () =>
+      formatSubjectsSummary(
+        selectedSubmissionSubjects,
+        profile?.subject || 'Mapel'
+      ),
+    [selectedSubmissionSubjects, profile?.subject]
+  );
+
   const [mode, setMode] = useState<SubmissionType>(
     existingSubmission?.submissionType || 'drive_upload'
   );
@@ -36,29 +63,61 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
       ? existingSubmission.fileUrl
       : ''
   );
-  const [externalName, setExternalName] = useState(
+  const [hasEditedExternalName, setHasEditedExternalName] = useState(
+    existingSubmission?.submissionType === 'external_link'
+  );
+  const [customExternalName, setCustomExternalName] = useState(
     existingSubmission?.submissionType === 'external_link'
       ? existingSubmission.fileName
-      : buildSubmissionFileName(
-          task.title,
-          profile?.fullName || 'Guru',
-          profile?.subject || 'Mapel'
-        )
+      : ''
   );
   const [confirmOverwrite, setConfirmOverwrite] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const generatedExternalName = useMemo(
+    () =>
+      buildSubmissionFileName(
+        task.title,
+        profile?.fullName || 'Guru',
+        resolvedSubmissionSubject
+      ),
+    [task.title, profile?.fullName, resolvedSubmissionSubject]
+  );
+
+  const externalName = hasEditedExternalName
+    ? customExternalName
+    : generatedExternalName;
+
   const previewFileName = useMemo(() => {
     const teacherName = profile?.fullName || 'Guru';
-    const subject = profile?.subject || 'Mapel';
     return buildSubmissionFileName(
       task.title,
       teacherName,
-      subject,
+      resolvedSubmissionSubject,
       selectedFile?.name
     );
-  }, [task.title, profile?.fullName, profile?.subject, selectedFile]);
+  }, [task.title, profile?.fullName, resolvedSubmissionSubject, selectedFile]);
+
+  const toggleSubmissionSubject = (subjectName: string) => {
+    setErrorMsg(null);
+    const exists = selectedSubmissionSubjects.some(
+      (s) => s.toLowerCase() === subjectName.toLowerCase()
+    );
+    if (exists) {
+      if (selectedSubmissionSubjects.length === 1) {
+        setErrorMsg('Minimal satu mata pelajaran harus dipilih untuk setoran ini.');
+        return;
+      }
+      setSelectedSubmissionSubjects(
+        selectedSubmissionSubjects.filter(
+          (s) => s.toLowerCase() !== subjectName.toLowerCase()
+        )
+      );
+    } else {
+      setSelectedSubmissionSubjects([...selectedSubmissionSubjects, subjectName]);
+    }
+  };
 
   const isRevision = Boolean(existingSubmission);
 
@@ -66,6 +125,11 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
     e.preventDefault();
     if (!user || !profile) return;
     setErrorMsg(null);
+
+    if (teacherSubjects.length > 0 && selectedSubmissionSubjects.length === 0) {
+      setErrorMsg('Pilih minimal satu mata pelajaran untuk setoran ini.');
+      return;
+    }
 
     if (isRevision && !confirmOverwrite) {
       setErrorMsg(
@@ -103,7 +167,7 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
           file: selectedFile,
           taskTitle: task.title,
           teacherName: profile.fullName,
-          subject: profile.subject,
+          subject: resolvedSubmissionSubject,
           folderId: task.driveFolderId || undefined,
           accessToken: token,
         });
@@ -115,7 +179,7 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
           teacherEmail: profile.email,
           teacherName: profile.fullName,
           teacherNip: profile.nip,
-          teacherSubject: profile.subject,
+          teacherSubject: resolvedSubmissionSubject,
           fileName: uploaded.fileName,
           fileUrl: uploaded.fileUrl,
           driveFileId: uploaded.fileId,
@@ -130,7 +194,7 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
           teacherEmail: profile.email,
           teacherName: profile.fullName,
           teacherNip: profile.nip,
-          teacherSubject: profile.subject,
+          teacherSubject: resolvedSubmissionSubject,
           fileName: externalName.trim(),
           fileUrl: externalUrl.trim(),
           driveFileId: '',
@@ -155,7 +219,7 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
           <div className="min-w-0">
             <h3 className="text-base font-semibold text-slate-900">
@@ -188,6 +252,37 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
           )}
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          {/* Subject selector when teacher teaches multiple subjects */}
+          {teacherSubjects.length > 1 && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5">
+              <span className="mb-2 block text-xs font-semibold text-slate-700">
+                Mata Pelajaran pada Setoran Ini
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {teacherSubjects.map((subj) => {
+                  const isActive = selectedSubmissionSubjects.some(
+                    (s) => s.toLowerCase() === subj.toLowerCase()
+                  );
+                  return (
+                    <button
+                      key={subj}
+                      type="button"
+                      onClick={() => toggleSubmissionSubject(subj)}
+                      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                        isActive
+                          ? 'border-teal-700 bg-teal-50 font-semibold text-teal-900'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      {isActive && <Check className="h-3 w-3 text-teal-700" />}
+                      <span>{subj}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Mode Selector */}
           <div className="grid grid-cols-2 gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1">
             <button
@@ -276,7 +371,10 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
                   type="text"
                   required
                   value={externalName}
-                  onChange={(e) => setExternalName(e.target.value)}
+                  onChange={(e) => {
+                    setHasEditedExternalName(true);
+                    setCustomExternalName(e.target.value);
+                  }}
                   className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm text-slate-900 focus:border-teal-700 focus:outline-none"
                 />
               </div>

@@ -50,14 +50,23 @@ service cloud.firestore {
     }
 
     // --- Validation Blueprints ---
+    function isValidSubjectsArray(data) {
+      return !('subjects' in data) || (
+        data.subjects is list &&
+        data.subjects.size() <= 20 &&
+        (data.subjects.size() == 0 || (data.subjects[0] is string && data.subjects[0].size() >= 1 && data.subjects[0].size() <= 120))
+      );
+    }
+
     function isValidUserProfile(data) {
       return data.keys().hasAll(['uid', 'email', 'fullName', 'nip', 'subject', 'role', 'createdAt', 'updatedAt']) &&
-        data.keys().hasOnly(['uid', 'email', 'fullName', 'nip', 'subject', 'role', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'fullName', 'nip', 'subject', 'subjects', 'role', 'createdAt', 'updatedAt']) &&
         isValidId(data.uid) &&
         data.email is string && data.email.size() >= 5 && data.email.size() <= 254 &&
         data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 150 &&
         data.nip is string && data.nip.size() <= 50 &&
-        data.subject is string && data.subject.size() <= 150 &&
+        data.subject is string && data.subject.size() <= 500 &&
+        isValidSubjectsArray(data) &&
         data.role in ['wakur', 'guru'] &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
@@ -65,11 +74,12 @@ service cloud.firestore {
 
     function isValidWhitelistedTeacher(data) {
       return data.keys().hasAll(['email', 'fullName', 'nip', 'subject', 'isRegistered', 'uid', 'createdBy', 'createdAt', 'updatedAt']) &&
-        data.keys().hasOnly(['email', 'fullName', 'nip', 'subject', 'isRegistered', 'uid', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['email', 'fullName', 'nip', 'subject', 'subjects', 'isRegistered', 'uid', 'createdBy', 'createdAt', 'updatedAt']) &&
         isValidEmailId(data.email) &&
         data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 150 &&
         data.nip is string && data.nip.size() >= 1 && data.nip.size() <= 50 &&
-        data.subject is string && data.subject.size() >= 2 && data.subject.size() <= 150 &&
+        data.subject is string && data.subject.size() >= 2 && data.subject.size() <= 500 &&
+        isValidSubjectsArray(data) &&
         data.isRegistered is bool &&
         (data.uid == null || isValidId(data.uid)) &&
         isValidId(data.createdBy) &&
@@ -83,6 +93,18 @@ service cloud.firestore {
         data.active is bool &&
         data.isRegistered is bool &&
         (data.uid == null || isValidId(data.uid)) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidSubject(data) {
+      return data.keys().hasAll(['schoolId', 'name', 'code', 'category', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['schoolId', 'name', 'code', 'category', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.schoolId == 'smkn9-bulukumba' &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 120 &&
+        data.code is string && data.code.size() <= 30 &&
+        data.category in ['Umum', 'Kejuruan', 'Muatan Lokal', 'Lainnya'] &&
+        isValidId(data.createdBy) &&
+        data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
 
@@ -117,7 +139,7 @@ service cloud.firestore {
         data.teacherEmail is string && data.teacherEmail.size() >= 5 && data.teacherEmail.size() <= 254 &&
         data.teacherName is string && data.teacherName.size() >= 1 && data.teacherName.size() <= 150 &&
         data.teacherNip is string && data.teacherNip.size() <= 50 &&
-        data.teacherSubject is string && data.teacherSubject.size() <= 150 &&
+        data.teacherSubject is string && data.teacherSubject.size() <= 500 &&
         data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 300 &&
         data.fileUrl is string && data.fileUrl.size() >= 5 && data.fileUrl.size() <= 1000 &&
         data.driveFileId is string && data.driveFileId.size() <= 256 &&
@@ -175,7 +197,7 @@ service cloud.firestore {
           (
             isOwner(userId) &&
             incoming().role == 'guru' &&
-            incoming().diff(existing()).affectedKeys().hasOnly(['role', 'fullName', 'nip', 'subject', 'updatedAt'])
+            incoming().diff(existing()).affectedKeys().hasOnly(['role', 'fullName', 'nip', 'subject', 'subjects', 'updatedAt'])
           )
         );
 
@@ -257,7 +279,7 @@ service cloud.firestore {
         (
           (
             isWakur() &&
-            incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'nip', 'subject', 'isRegistered', 'uid', 'updatedAt'])
+            incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'nip', 'subject', 'subjects', 'isRegistered', 'uid', 'updatedAt'])
           ) ||
           (
             existing().isRegistered == false &&
@@ -266,6 +288,15 @@ service cloud.firestore {
             request.auth.token.email != null &&
             request.auth.token.email.lower() == teacherEmail &&
             incoming().diff(existing()).affectedKeys().hasOnly(['isRegistered', 'uid', 'updatedAt'])
+          ) ||
+          (
+            existing().isRegistered == true &&
+            existing().uid == request.auth.uid &&
+            incoming().isRegistered == true &&
+            incoming().uid == existing().uid &&
+            incoming().fullName == existing().fullName &&
+            incoming().nip == existing().nip &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['subject', 'subjects', 'updatedAt'])
           )
         );
 
@@ -307,6 +338,33 @@ service cloud.firestore {
         );
 
       allow delete: if isWakur() && isValidEmailId(teacherEmail);
+    }
+
+    // 3b. School Subjects (Managed by Wakur, readable by signed-in teachers)
+    match /subjects/{subjectId} {
+      allow get: if isSignedIn() && isValidId(subjectId) && (
+        isWakur() ||
+        exists(/databases/$(database)/documents/users/$(request.auth.uid))
+      );
+      allow list: if isSignedIn() && existing().schoolId == 'smkn9-bulukumba';
+
+      allow create: if isWakur() &&
+        isValidId(subjectId) &&
+        isValidSubject(incoming()) &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isWakur() &&
+        isValidId(subjectId) &&
+        isValidSubject(incoming()) &&
+        incoming().schoolId == existing().schoolId &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'code', 'category', 'updatedAt']);
+
+      allow delete: if isWakur() && isValidId(subjectId);
     }
 
     // 4. Curriculum Tasks
@@ -378,7 +436,7 @@ service cloud.firestore {
             incoming().status == 'Menunggu Verifikasi' &&
             incoming().revisionNote == existing().revisionNote &&
             incoming().reviewedBy == existing().reviewedBy &&
-            incoming().diff(existing()).affectedKeys().hasOnly(['fileName', 'fileUrl', 'driveFileId', 'submissionType', 'status', 'updatedAt'])
+            incoming().diff(existing()).affectedKeys().hasOnly(['teacherSubject', 'fileName', 'fileUrl', 'driveFileId', 'submissionType', 'status', 'updatedAt'])
           )
         );
 

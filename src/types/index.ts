@@ -8,6 +8,7 @@ export interface UserProfile {
   fullName: string;
   nip: string;
   subject: string;
+  subjects?: string[];
   role: UserRole;
   createdAt?: Timestamp | null;
   updatedAt?: Timestamp | null;
@@ -19,11 +20,31 @@ export interface WhitelistedTeacher {
   fullName: string;
   nip: string;
   subject: string;
+  subjects?: string[];
   isRegistered: boolean;
   uid: string | null;
   createdBy: string;
   createdAt?: Timestamp | null;
   updatedAt?: Timestamp | null;
+}
+
+export type SubjectCategory = 'Umum' | 'Kejuruan' | 'Muatan Lokal' | 'Lainnya';
+
+export interface SchoolSubject {
+  id: string;
+  schoolId: 'smkn9-bulukumba';
+  name: string;
+  code: string;
+  category: SubjectCategory;
+  createdBy: string;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+}
+
+export interface NewSubjectInput {
+  name: string;
+  code: string;
+  category: SubjectCategory;
 }
 
 export interface CurriculumTask {
@@ -67,6 +88,7 @@ export interface NewTeacherInput {
   fullName: string;
   nip: string;
   subject: string;
+  subjects?: string[];
 }
 
 export interface NewTaskInput {
